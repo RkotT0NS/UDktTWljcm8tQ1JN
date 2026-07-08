@@ -5,19 +5,23 @@ on:
     branches:
       - "main"
     paths:
-      - 'back/**'
-      - 'front/**'
-      - '.github/workflows/ci.yml'
+      - "back/**"
+      - "front/**"
+      - "test.sh"
+      - "build.sh"
+      - ".github/workflows/ci.yml"
   pull_request:
     branches:
       - "review"
     paths:
-      - 'back/**'
-      - 'front/**'
-      - '.github/workflows/ci.yml'
+      - "back/**"
+      - "front/**"
+      - "test.sh"
+      - "build.sh"
+      - ".github/workflows/ci.yml"
   schedule:
     # Exécution périodique hebdomadaire (le dimanche à minuit)
-    - cron: '0 0 * * 0'
+    - cron: "0 0 * * 0"
   workflow_dispatch:
 
 env:
@@ -73,13 +77,13 @@ jobs:
         run: |
           cd front
           npm audit --json > npm-audit-report.json || true
-          
+
           # Configuration Git pour pousser les Git Notes
           git config --global user.name "Github Actions Bot"
           git config --global user.email "actions@github.com"
-          
+
           DATE_AUDIT=$(date +%Y-%m-%d)
-          
+
           # Archivage sous forme de Git Notes dans refs/notes/npm-audit/YYYY-MM-DD
           git notes --ref npm-audit/$DATE_AUDIT add -F npm-audit-report.json ${{ github.sha }} || true
           git push origin refs/notes/npm-audit/$DATE_AUDIT || echo "Avertissement : Impossible de pousser les Git Notes (permissions de push sur ce repo ?)"
