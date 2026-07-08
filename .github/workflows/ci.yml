@@ -9,6 +9,7 @@ on:
       - "front/**"
       - "test.sh"
       - "build.sh"
+      - "sonar-project.properties"
       - ".github/workflows/ci.yml"
   pull_request:
     branches:
