@@ -1,0 +1,110 @@
+name: CI (Testing & Quality)
+
+on:
+  push:
+    branches:
+      - "main"
+    paths:
+      - 'back/**'
+      - 'front/**'
+      - '.github/workflows/ci.yml'
+  pull_request:
+    branches:
+      - "review"
+    paths:
+      - 'back/**'
+      - 'front/**'
+      - '.github/workflows/ci.yml'
+  schedule:
+    # Exécution périodique hebdomadaire (le dimanche à minuit)
+    - cron: '0 0 * * 0'
+  workflow_dispatch:
+
+env:
+  DOCKER_BUILD_PARAMS: --cache-from=type=gha --cache-to=type=gha,mode=max --load
+
+jobs:
+  test:
+    name: Run Tests & Quality Gate
+    runs-on: ubuntu-latest
+    if: "!contains(github.event.head_commit.message, '[skip ci]')"
+
+    permissions:
+      checks: write
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Nécessaire pour SonarQube pour avoir l'historique complet
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Set up Image Tags
+        id: tags
+        run: |
+          BRANCH_NAME=$(echo "${{ github.ref_name }}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-zA-Z0-9._-]/-/g')
+          SHA_TAG="${{ github.sha }}"
+          echo "image_version=${BRANCH_NAME}-${SHA_TAG}" >> $GITHUB_OUTPUT
+
+      - name: Run test.sh (Docker Multi-stage compilation & unit tests)
+        run: |
+          chmod +x test.sh
+          ./test.sh "${{ steps.tags.outputs.image_version }}"
+
+      - name: Publish JUnit Test Report
+        uses: mikepenz/action-junit-report@v4
+        if: always()
+        with:
+          report_paths: "./test-results/*.xml"
+          detailed_summary: true
+          include_passed: true
+
+      - name: Upload Test Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: junit-test-results
+          path: ./test-results/
+
+      - name: Run npm audit (Frontend Security Audit)
+        run: |
+          cd front
+          npm audit --json > npm-audit-report.json || true
+          
+          # Configuration Git pour pousser les Git Notes
+          git config --global user.name "Github Actions Bot"
+          git config --global user.email "actions@github.com"
+          
+          DATE_AUDIT=$(date +%Y-%m-%d)
+          
+          # Archivage sous forme de Git Notes dans refs/notes/npm-audit/YYYY-MM-DD
+          git notes --ref npm-audit/$DATE_AUDIT add -F npm-audit-report.json ${{ github.sha }} || true
+          git push origin refs/notes/npm-audit/$DATE_AUDIT || echo "Avertissement : Impossible de pousser les Git Notes (permissions de push sur ce repo ?)"
+        continue-on-error: true
+
+      # Analyses SonarQube Cloud (résilientes en cas de panne et configurées pour l'étape 2)
+      - name: SonarQube Scan (Backend Spring Boot)
+        if: always() && hashFiles('back/build.gradle') != ''
+        run: |
+          cd back
+          if [ -n "${{ secrets.SONAR_TOKEN }}" ]; then
+            ./gradlew sonar \
+              -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
+              -Dsonar.host.url=https://sonarcloud.io \
+              || echo "===> Avertissement : Échec de l'analyse SonarQube (seuil non atteint ou erreur réseau)"
+          else
+            echo "===> SonarQube non configuré : secret SONAR_TOKEN absent."
+          fi
+        continue-on-error: true
+
+      - name: SonarQube Scan (Frontend Angular)
+        if: always() && hashFiles('front/package.json') != ''
+        uses: sonarsource/sonarcloud-github-action@v2
+        continue-on-error: true
+        with:
+          projectBaseDir: front
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
