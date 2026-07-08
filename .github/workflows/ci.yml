@@ -39,12 +39,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
           fetch-depth: 0 # Nécessaire pour SonarQube pour avoir l'historique complet
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
 
       - name: Set up Image Tags
         id: tags
@@ -59,7 +59,7 @@ jobs:
           ./test.sh "${{ steps.tags.outputs.image_version }}"
 
       - name: Publish JUnit Test Report
-        uses: mikepenz/action-junit-report@v4
+        uses: mikepenz/action-junit-report@db71d41eb79864e25ab0337e395c352e84523afe # v4.3.1
         if: always()
         with:
           report_paths: "./test-results/*.xml"
@@ -67,7 +67,7 @@ jobs:
           include_passed: true
 
       - name: Upload Test Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
         if: always()
         with:
           name: junit-test-results
@@ -106,7 +106,7 @@ jobs:
 
       - name: SonarQube Scan (Frontend Angular)
         if: always() && hashFiles('front/package.json') != ''
-        uses: sonarsource/sonarcloud-github-action@v2
+        uses: sonarsource/sonarcloud-github-action@e44258b109568baa0df60ed515909fc6c72cba92 # v2.3.0
         continue-on-error: true
         with:
           projectBaseDir: front
