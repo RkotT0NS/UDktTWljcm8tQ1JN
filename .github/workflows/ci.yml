@@ -92,11 +92,13 @@ jobs:
       # Analyses SonarQube Cloud (résilientes en cas de panne et configurées pour l'étape 2)
       - name: SonarQube Scan (Backend Spring Boot)
         if: always() && hashFiles('back/build.gradle') != ''
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
           cd back
-          if [ -n "${{ secrets.SONAR_TOKEN }}" ]; then
+          if [ -n "$SONAR_TOKEN" ]; then
             ./gradlew sonar \
-              -Dsonar.token=${{ secrets.SONAR_TOKEN }} \
+              -Dsonar.token="$SONAR_TOKEN" \
               -Dsonar.host.url=https://sonarcloud.io \
               || echo "===> Avertissement : Échec de l'analyse SonarQube (seuil non atteint ou erreur réseau)"
           else
