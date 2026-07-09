@@ -1,6 +1,19 @@
 * {
 	root * /app/front
 	encode gzip
+
+	# Proxy inverse pour l'API backend en retirant le préfixe /api
+	handle_path /api/* {
+		reverse_proxy backend:8080
+	}
+
+	# Routage SPA pour Angular
 	try_files {path} /index.html
 	file_server
+
+	# Gestion des erreurs du reverse proxy (502 / 503 backend indisponible)
+	handle_errors {
+		rewrite * /maintenance.html
+		file_server
+	}
 }
