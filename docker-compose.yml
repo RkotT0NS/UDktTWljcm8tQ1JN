@@ -17,6 +17,8 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - microcrm-network
     restart: unless-stopped
 
   backend:
@@ -34,6 +36,13 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    networks:
+      - microcrm-network
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "microcrm-backend"
     restart: unless-stopped
 
   frontend:
@@ -47,7 +56,18 @@ services:
       - "443:443"
     depends_on:
       - backend
+    networks:
+      - microcrm-network
+    logging:
+      driver: gelf
+      options:
+        gelf-address: "udp://127.0.0.1:12201"
+        tag: "microcrm-frontend"
     restart: unless-stopped
+
+networks:
+  microcrm-network:
+    name: microcrm-network
 
 volumes:
   postgres_data:

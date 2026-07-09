@@ -1,17 +1,45 @@
 version: "3.8"
 
 services:
+  setup:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
+    container_name: microcrm-elk-setup
+    environment:
+      - ELASTIC_PASSWORD=elastic_pass
+      - KIBANA_PASSWORD=kibana_pass
+    networks:
+      - microcrm-network
+    command: >
+      bash -c '
+        echo "Waiting for Elasticsearch health...";
+        until curl -s http://elasticsearch:9200 | grep -q "missing authentication credentials"; do sleep 2; done;
+        echo "Setting kibana_system password...";
+        curl -s -u elastic:elastic_pass -X POST http://elasticsearch:9200/_security/user/kibana_system/_password -H "Content-Type: application/json" -d "{\"password\":\"kibana_pass\"}"
+        echo "All done!";
+      '
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:8.12.2
     container_name: microcrm-elasticsearch
     environment:
       - discovery.type=single-node
-      - xpack.security.enabled=false
+      - xpack.security.enabled=true
+      - ELASTIC_PASSWORD=elastic_pass
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
     volumes:
       - elasticsearch_data:/usr/share/elasticsearch/data
     ports:
       - "9200:9200"
+    networks:
+      - microcrm-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -s http://localhost:9200 | grep -q 'missing authentication credentials'"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
     restart: unless-stopped
 
   logstash:
@@ -19,12 +47,17 @@ services:
     container_name: microcrm-logstash
     environment:
       - LS_JAVA_OPTS=-Xms512m -Xmx512m
+      - xpack.monitoring.enabled=false
     volumes:
       - ./misc/monitoring/logstash/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
     ports:
       - "5044:5044"
+      - "12201:12201/udp"
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - microcrm-network
     restart: unless-stopped
 
   kibana:
@@ -32,11 +65,22 @@ services:
     container_name: microcrm-kibana
     environment:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=kibana_pass
     ports:
       - "5601:5601"
     depends_on:
-      - elasticsearch
+      elasticsearch:
+        condition: service_healthy
+      setup:
+        condition: service_completed_successfully
+    networks:
+      - microcrm-network
     restart: unless-stopped
+
+networks:
+  microcrm-network:
+    name: microcrm-network
 
 volumes:
   elasticsearch_data:
