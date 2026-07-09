@@ -1,155 +1,62 @@
-<p align="center">
-   <img src="./front/src/favicon.png" width="192px" />
-</p>
+# 🚀 MicroCRM - Plateforme Conteneurisée, Industrialisée et Sécurisée
 
-# MicroCRM (P7 - Développeur Full-Stack - Java et Angular - Mettez en œuvre l'intégration et le déploiement continu d'une application Full-Stack)
+Ce dépôt contient l'application **MicroCRM** (Back-end Spring Boot 3 & Front-end Angular 17) industrialisée selon les standards DevOps les plus stricts de l'initiative Orion.
 
-MicroCRM est une application de démonstration basique ayant pour être objectif de servir de socle pour le module "P7 - Développeur Full-Stack".
+---
 
-L'application MicroCRM est une implémentation simplifiée d'un ["CRM" (Customer Relationship Management)](https://fr.wikipedia.org/wiki/Gestion_de_la_relation_client). Les fonctionnalités sont limitées à la création, édition et la visualisations des individus liés à des organisations.
+## 🛠️ Choix Techniques & Architecture
 
-![Page d'accueil](./misc/screenshots/screenshot_1.png)
-![Édition de la fiche d'un individu](./misc/screenshots/screenshot_2.png)
+### 1. Intégration Continue & Livraison Continue (CI/CD)
+* **Workflows durcis** : Les actions tierces utilisées dans les fichiers de workflow (`ci.yml` et `release.yml`) sont épinglées par leur hash de commit SHA-1 unique à 40 caractères pour se prémunir des attaques sur la chaîne logistique (Supply Chain Attacks).
+* **Gestion sécurisée des secrets** : Aucune interpolation directe de secrets (ex. `${{ secrets.X }}`) n'est réalisée dans les blocs `run`. Les secrets sont injectés sous forme de variables d'environnement de step (`env:`).
+* **Audit de sécurité npm** : La commande `npm audit --json` est exécutée automatiquement lors de la CI. Le rapport de vulnérabilité est historisé de manière immuable au sein des **Git Notes** du dépôt sous la référence `refs/notes/npm-audit/YYYY-MM-DD`.
+* **Releases sémantiques découplées** : Le déclenchement de livraison est segmenté par tag sémantique (`front-X.Y.Z` et `back-X.Y.Z`). Les images Docker correspondantes sont compilées et poussées séparément sur GitHub Container Registry (GHCR), et une release GitHub est créée avec l'artefact compilé (JAR ou ZIP du dist).
 
-## Code source
+### 2. Analyse Qualité & Intégrité
+* **SonarCloud unifié** : L'analyse de qualité du code est centralisée au sein d'un projet unique sur SonarCloud (`microcrm` sous l'organisation `rkott0ns`). Elle combine la couverture de code Java (générée par Jacoco au format XML) et Angular (générée par Karma au format LCOV).
+* **Intégrité des dépendances Gradle** : La compilation Java valide les signatures et checksums cryptographiques SHA-256 de chaque dépendance tierce à l'aide de la configuration stricte de [verification-metadata.xml](back/gradle/verification-metadata.xml).
+* **Intégrité des sous-ressources (SRI)** : Le chargement des feuilles de style externes (Bulma CSS via CDN jsDelivr) dans [index.html](front/src/index.html) est sécurisé à l'aide des attributs `integrity` (SHA-384 calculé) et `crossorigin="anonymous"`.
 
-### Organisation
+### 3. Persistance & Base de Données
+* **Base de données PostgreSQL** : La base de données en mémoire volatile a été remplacée par un conteneur PostgreSQL 16 dédié avec volume persistant. Le démarrage du backend attend que la base soit disponible (validation via `pg_isready` dans le healthcheck).
+* **Surcharges de configuration** : La configuration de la base de données est définie par défaut dans [application.properties](back/src/main/resources/application.properties) pour la simplicité du développement local. Elle est surchargée en production/conteneur par les variables d'environnement Spring Boot injectées par le fichier de composition.
+* **Isolation des tests** : Les tests unitaires et de compilation s'exécutent de manière isolée en mémoire grâce à une configuration HSQLDB dédiée dans [src/test/resources/application.properties](back/src/test/resources/application.properties).
 
-Ce [monorepo](https://en.wikipedia.org/wiki/Monorepo) contient les 2 composantes du projet "MicroCRM":
+### 4. Routage & Résilience (Caddy Web Server)
+* **Proxy inverse** : Caddy sert le frontend Angular de manière statique et proxyfie les requêtes `/api/*` vers le backend Spring Boot en retirant dynamiquement le préfixe `/api` (directive `handle_path`), éliminant ainsi le besoin de CORS.
+* **Page de maintenance premium** : Si le backend Spring Boot est arrêté ou inaccessible (erreurs HTTP 502/503), Caddy intercepte l'erreur pour servir une page de maintenance statique soignée (`maintenance.html`).
 
-- La partie serveur (ou "backend"), en Java SpringBoot 3;
-- La partie cliente (ou "frontend"), en Angular 17.
+### 5. Monitoring (Stack ELK)
+* **Stack ELK dédiée** : Orchestrée séparément de l'application via `docker-compose.monitoring.yml`.
+* **Contrôle des ressources** : Elasticsearch (JVM 1 Go) et Logstash (JVM 512 Mo) sont configurés avec des limites strictes.
+* **GitOps** : Les pipelines de logs Logstash, les index Elasticsearch et les structures de tableaux de bord Kibana (métriques DORA) sont versionnés sous `misc/monitoring/`.
 
-### Démarrer avec les sources
+---
 
-#### Serveur
+## 🚀 Instructions d'Exécution
 
-##### Dépendances
+### Prérequis
+* Docker & Docker Compose (v2.x)
+* (Optionnel pour le dev local) Java 17 (openjdk-17) & Node.js 24.18.0 (gérés via `asdf` ou `.tool-versions`)
 
-- [OpenJDK >= 17](https://openjdk.org/)
-
-##### Procédure
-
-1. Se positionner dans le répertoire `back` avec une invite de commande:
-
-   ```shell
-   cd back
-   ```
-
-2. Construire le JAR:
-
-   ```shell
-   # Sur Linux
-   ./gradlew build
-
-   # Sur Windows
-   gradlew.bat build
-   ```
-
-3. Démarrer le service:
-
-   ```shell
-   java -jar build/libs/microcrm-0.0.1-SNAPSHOT.jar
-   ```
-
-Puis ouvrir l'URL http://localhost:8080 dans votre navigateur.
-
-#### Client
-
-##### Dépendances
-
-- [NPM >= 10.2.4](https://www.npmjs.com/)
-
-##### Procédure
-
-1. Se positionner dans le répertoire `front` avec une invite de commande:
-
-   ```shell
-   cd front
-   ```
-
-2. (La première fois seulement) Installer les dépendances NodeJS:
-
-   ```shell
-   npm install
-   ```
-
-3. Démarrer le service de développement:
-
-   ```shell
-   npx @angular/cli serve
-   ```
-
-Puis ouvrir l'URL http://localhost:4200 dans votre navigateur.
-
-### Exécution des tests
-
-#### Client
-
-**Dépendances**
-
-- Google Chrome ou Chromium
-
-Dans votre terminal:
-
-```shell
-cd front
-CHROME_BIN=</path/to/google/chrome> npm test
+### 1. Démarrage de l'Application CRM
+Pour construire localement et démarrer les conteneurs (Base de données Postgres, API backend, serveur web Caddy frontend) :
+```bash
+docker compose up --build
 ```
+* **Accès Frontend** : [http://localhost](http://localhost) (Port 80)
+* **Accès Backend API** : [http://localhost/api](http://localhost/api) (Routé par Caddy sur le port 80, ou en direct sur le port 8080)
 
-#### Serveur
-
-Dans votre terminal:
-
-```shell
-cd back
-./gradlew test
+### 2. Démarrage de la Stack de Monitoring (ELK)
+Pour lancer la stack de monitoring de manière isolée :
+```bash
+docker compose -f docker-compose.monitoring.yml up -d
 ```
+* **Kibana Dashboard** : [http://localhost:5601](http://localhost:5601)
 
-### Images Docker
-
-#### Client
-
-##### Construire l'image
-
-```shell
-docker build --target front -t orion-microcrm-front:latest .
+### 3. Exécution locale des tests unitaires
+Pour exécuter la suite de tests et collecter les rapports XML et de couverture :
+```bash
+./test.sh
 ```
-
-##### Exécuter l'image
-
-```shell
-docker run -it --rm -p 80:80 -p 443:443 orion-microcrm-front:latest
-```
-
-L'application sera disponible sur https://localhost.
-
-#### Serveur
-
-##### Construire l'image
-
-```shell
-docker build --target back -t orion-microcrm-back:latest .
-```
-
-##### Exécuter l'image
-
-```shell
-docker run -it --rm -p 8080:8080 orion-microcrm-back:latest
-```
-
-L'API sera disponible sur http://localhost:8080.
-
-#### Tout en un
-
-```shell
-docker build --target standalone -t orion-microcrm-standalone:latest .
-```
-
-##### Exécuter l'image
-
-```shell
-docker run -it --rm -p 8080:8080 -p 80:80 -p 443:443 orion-microcrm-standalone:latest
-```
-
-L'application sera disponible sur https://localhost et l'API sur http://localhost:8080.
+Rapports générés dans le dossier `./test-results/`.
