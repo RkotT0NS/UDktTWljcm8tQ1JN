@@ -1,0 +1,15 @@
+{
+  "objects": [
+    {
+      "id": "microcrm-dora-dashboard",
+      "type": "dashboard",
+      "attributes": {
+        "title": "MicroCRM DORA & KPIs Dashboard",
+        "description": "Tableau de bord de monitoring DevOps avec indicateurs DORA (Deployment Frequency, Lead Time, MTTR, Change Failure Rate) et taux d'erreurs HTTP",
+        "panelsJSON": "[]",
+        "optionsJSON": "{\"useMargins\":true}",
+        "version": 1
+      }
+    }
+  ]
+}
