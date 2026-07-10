@@ -7,6 +7,8 @@ services:
     environment:
       - ELASTIC_PASSWORD=elastic_pass
       - KIBANA_PASSWORD=kibana_pass
+    volumes:
+      - ./misc/monitoring/kibana/dashboards.json:/usr/share/elasticsearch/dashboards.json:ro
     networks:
       - microcrm-network
     command: >
@@ -15,6 +17,13 @@ services:
         until curl -s http://elasticsearch:9200 | grep -q "missing authentication credentials"; do sleep 2; done;
         echo "Setting kibana_system password...";
         curl -s -u elastic:elastic_pass -X POST http://elasticsearch:9200/_security/user/kibana_system/_password -H "Content-Type: application/json" -d "{\"password\":\"kibana_pass\"}"
+        echo "Waiting for Kibana to be ready...";
+        until curl -s -I http://kibana:5601/login | grep -q "200"; do sleep 5; done;
+        echo "Importing Kibana dashboards...";
+        curl -s -X POST http://kibana:5601/api/saved_objects/_import?overwrite=true \
+          -H "kbn-xsrf: true" \
+          -u elastic:elastic_pass \
+          --form file=@/usr/share/elasticsearch/dashboards.json
         echo "All done!";
       '
     depends_on:
@@ -67,13 +76,14 @@ services:
       - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
       - ELASTICSEARCH_USERNAME=kibana_system
       - ELASTICSEARCH_PASSWORD=kibana_pass
+      - XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY=super_secret_key_32_characters_long
+      - XPACK_SECURITY_ENCRYPTIONKEY=super_secret_key_32_characters_long
+      - XPACK_REPORTING_ENCRYPTIONKEY=super_secret_key_32_characters_long
     ports:
       - "5601:5601"
     depends_on:
       elasticsearch:
         condition: service_healthy
-      setup:
-        condition: service_completed_successfully
     networks:
       - microcrm-network
     restart: unless-stopped
